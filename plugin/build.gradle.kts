@@ -40,7 +40,7 @@ group = "io.github.tafilovic"
 version = "1.0.0"
 
 // Read property to determine which plugin to register
-val publishTarget = findProperty("publishTarget")?.toString()?.lowercase() ?: "gradle"
+val publishTarget = findProperty("publishTarget")?.toString()?.lowercase() ?: "central"
 
 gradlePlugin {
     website = "https://github.com/tafilovic/central-portal-publisher"
