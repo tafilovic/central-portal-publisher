@@ -16,9 +16,7 @@ import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.jvm.tasks.Jar
 import java.io.File
-import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.security.MessageDigest
 import java.util.Base64
 import java.util.Properties
 import java.util.concurrent.TimeUnit
