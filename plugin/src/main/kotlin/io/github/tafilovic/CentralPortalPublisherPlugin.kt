@@ -138,8 +138,6 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
                     ?.let { file(it).readText() }
 
                 println("SigningKey: $signingKeyId")
-                println("SigningKeyFile: $signingKeyFile")
-                println("SigningPassword: $signingPassword")
 
                 useInMemoryPgpKeys(signingKeyId, signingKeyFile, signingPassword)
                 sign(extensions.getByType(PublishingExtension::class.java).publications)
