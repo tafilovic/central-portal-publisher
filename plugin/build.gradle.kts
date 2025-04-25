@@ -40,14 +40,26 @@ group = "io.github.tafilovic"
 version = "1.0.0"
 
 gradlePlugin {
+    website = "https://github.com/tafilovic/central-portal-publisher"
+    vcsUrl = "https://github.com/tafilovic/central-portal-publisher.git"
     // Define the plugin
-    val centralPortalPublisher by plugins.creating {
-        id = "central.portal.publisher"
-        implementationClass = "io.github.tafilovic.CentralPortalPublisherPlugin"
-        displayName = "Central Portal Publishing plugin"
-        description =
-            "Gradle plugin for use in kotlin and java libraries for publishing to Central Portal"
-        tags = listOf("central", "portal", "publish", "kotlin", "java", "library", "android")
+//    val centralPortalPublisher by plugins.creating {
+//        id = "central.portal.publisher"
+//        implementationClass = "io.github.tafilovic.CentralPortalPublisherPlugin"
+//        displayName = "Central Portal Publishing plugin"
+//        description =
+//            "Gradle plugin for use in kotlin and java libraries for publishing to Central Portal"
+//        tags = listOf("central", "portal", "publish", "kotlin", "java", "library", "android")
+//    }
+    plugins {
+        create("publisherPlugin"){
+            id = "central.portal.publisher"
+            implementationClass = "io.github.tafilovic.CentralPortalPublisherPlugin"
+            displayName = "Central Portal Publishing plugin"
+            description =
+                "Gradle plugin for use in kotlin and java libraries for publishing to Central Portal"
+            tags = listOf("central", "portal", "publish", "kotlin", "java", "library", "android")
+        }
     }
 }
 
