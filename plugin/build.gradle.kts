@@ -39,27 +39,50 @@ dependencies {
 group = "io.github.tafilovic"
 version = "1.0.0"
 
+// Read property to determine which plugin to register
+val publishTarget = findProperty("publishTarget")?.toString()?.lowercase() ?: "gradle"
+
 gradlePlugin {
     website = "https://github.com/tafilovic/central-portal-publisher"
     vcsUrl = "https://github.com/tafilovic/central-portal-publisher.git"
-    // Define the plugin
-//    val centralPortalPublisher by plugins.creating {
-//        id = "central.portal.publisher"
-//        implementationClass = "io.github.tafilovic.CentralPortalPublisherPlugin"
-//        displayName = "Central Portal Publishing plugin"
-//        description =
-//            "Gradle plugin for use in kotlin and java libraries for publishing to Central Portal"
-//        tags = listOf("central", "portal", "publish", "kotlin", "java", "library", "android")
-//    }
     plugins {
-        create("publisherPlugin"){
-            id = "central.portal.publisher"
-            implementationClass = "io.github.tafilovic.CentralPortalPublisherPlugin"
-            displayName = "Central Portal Publishing plugin"
-            description =
-                "Gradle plugin for use in kotlin and java libraries for publishing to Central Portal"
-            tags = listOf("central", "portal", "publish", "kotlin", "java", "library", "android")
+        if (publishTarget == "central") {
+            register("centralPortalPlugin") {
+                id = "central.portal.publisher"
+                implementationClass = "io.github.tafilovic.CentralPortalPublisherPlugin"
+                displayName = "Central Portal Publishing plugin"
+                description =
+                    "Gradle plugin for use in kotlin and java libraries for publishing to Central Portal"
+                tags =
+                    listOf("central", "portal", "publish", "kotlin", "java", "library", "android")
+            }
         }
+
+        if (publishTarget == "gradle") {
+            register("gradlePortalPlugin") {
+                id = "io.github.tafilovic.central-portal-publisher"
+                implementationClass = "io.github.tafilovic.CentralPortalPublisherPlugin"
+                displayName = "Central Portal Publishing plugin"
+                description =
+                    "Gradle plugin for use in kotlin and java libraries for publishing to Central Portal"
+                tags =
+                    listOf("central", "portal", "publish", "kotlin", "java", "library", "android")
+            }
+        }
+    }
+}
+
+tasks.register("publishToGradlePortal") {
+    dependsOn("publishPlugins")
+    doFirst {
+        ext["publishTarget"] = "gradle"
+    }
+}
+
+tasks.register("publishToMavenCentral") {
+    dependsOn("publishAllPublicationsToMavenCentralPortal")
+    doFirst {
+        ext["publishTarget"] = "central"
     }
 }
 
