@@ -123,17 +123,21 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
                 }
             }
 
-            project.tasks.matching { it.name == "generateMetadataFileForMavenPublication" }
-                .configureEach {
-                    dependsOn(sourcesJar, javadocJar)
-                }
+            project.tasks.matching { it.name == "generateMetadataFileForMavenPublication" }.configureEach {
+                dependsOn(sourcesJar, javadocJar)
+            }
+
+            project.tasks.matching { it.name=="signMavenPublications" }.configureEach {
+                dependsOn("releaseSourcesJar")
+            }
 
 
             project.pluginManager.apply("signing")
             extensions.configure(org.gradle.plugins.signing.SigningExtension::class.java) {
-                if(localProperties.containsKey("signing.keyId") &&
+                if (localProperties.containsKey("signing.keyId") &&
                     localProperties.containsKey("signing.password") &&
-                    localProperties.containsKey("signing.secretKeyRingFile")) {
+                    localProperties.containsKey("signing.secretKeyRingFile")
+                ) {
                     val signingKeyId = localProperties.getValue("signing.keyId") as String?
                     val signingPassword = localProperties.getValue("signing.password") as String?
                     val signingKeyFile = localProperties.getValue("signing.secretKeyRingFile")

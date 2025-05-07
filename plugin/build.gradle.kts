@@ -29,7 +29,7 @@ dependencies {
 }
 
 group = "io.github.tafilovic"
-version = "1.0.4"
+version = "1.0.5"
 
 // Read property to determine which plugin to register
 val publishTarget = findProperty("publishTarget")?.toString()?.lowercase() ?: "central"
