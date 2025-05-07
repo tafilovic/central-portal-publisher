@@ -52,11 +52,11 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
         }
 
         project.afterEvaluate {
-            val androidComponent = project.components.findByName("release")
-            if (androidComponent == null) {
-                logger.error("❌ 'release' component not found — make sure this is an Android library module")
-                return@afterEvaluate
-            }
+//            val androidComponent = project.components.findByName("release")
+//            if (androidComponent == null) {
+//                logger.error("❌ 'release' component not found — make sure this is an Android library module")
+//                return@afterEvaluate
+//            }
 
             project.extensions.configure(PublishingExtension::class.java) {
                 publications {
@@ -128,17 +128,23 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
                     dependsOn(sourcesJar, javadocJar)
                 }
 
+
             project.pluginManager.apply("signing")
             extensions.configure(org.gradle.plugins.signing.SigningExtension::class.java) {
-                val signingKeyId = localProperties.getValue("signing.keyId") as String?
-                val signingPassword = localProperties.getValue("signing.password") as String?
-                val signingKeyFile = localProperties.getValue("signing.secretKeyRingFile")
-                    ?.let { file(it).readText() }
+                if(localProperties.containsKey("signing.keyId") &&
+                    localProperties.containsKey("signing.password") &&
+                    localProperties.containsKey("signing.secretKeyRingFile")) {
+                    val signingKeyId = localProperties.getValue("signing.keyId") as String?
+                    val signingPassword = localProperties.getValue("signing.password") as String?
+                    val signingKeyFile = localProperties.getValue("signing.secretKeyRingFile")
+                        ?.let { file(it).readText() }
 
-                println("SigningKey: $signingKeyId")
+                    println("SigningKey: $signingKeyId")
 
-                useInMemoryPgpKeys(signingKeyId, signingKeyFile, signingPassword)
-                sign(extensions.getByType(PublishingExtension::class.java).publications)
+                    useInMemoryPgpKeys(signingKeyId, signingKeyFile, signingPassword)
+                    sign(extensions.getByType(PublishingExtension::class.java).publications)
+                    println("✅ Signed artifacts! ")
+                }
             }
         }
 
@@ -178,6 +184,11 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
 
                 println("✅ Packaged artifacts into ${outputZip.name}")
             }
+        }
+
+        tasks.register("fakeUpload") {
+            group = "publishing"
+            dependsOn(packageArtifacts)
         }
 
         tasks.register("uploadToCentralPortal") {
