@@ -52,11 +52,11 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
         }
 
         project.afterEvaluate {
-//            val androidComponent = project.components.findByName("release")
-//            if (androidComponent == null) {
-//                logger.error("❌ 'release' component not found — make sure this is an Android library module")
-//                return@afterEvaluate
-//            }
+            val androidComponent = project.components.findByName("release")
+            if (androidComponent == null) {
+                logger.error("❌ 'release' component not found — make sure this is an Android library module")
+                return@afterEvaluate
+            }
 
             project.extensions.configure(PublishingExtension::class.java) {
                 publications {
@@ -66,7 +66,7 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
                     )
 
                     mavenPublication.apply {
-                        //from(androidComponent)
+                        from(androidComponent)
                         groupId = project.findProperty("GROUP")?.toString()
                         artifactId = project.findProperty("POM_ARTIFACT_ID")?.toString()
                         version = project.findProperty("VERSION_NAME")?.toString()
