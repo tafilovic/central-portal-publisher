@@ -14,6 +14,7 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
+import org.gradle.api.tasks.javadoc.Javadoc
 import org.gradle.jvm.tasks.Jar
 import java.io.File
 import java.io.FileOutputStream
@@ -30,6 +31,9 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
     override fun apply(project: Project): Unit = with(project) {
         plugins.apply("maven-publish")
 
+        val ext =
+            project.extensions.create("centralPortalPublisher", CentralPortalExtension::class.java)
+
         val localProperties = Properties().apply {
             val localFile = project.rootProject.file("local.properties")
             if (localFile.exists()) {
@@ -37,9 +41,18 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
             }
         }
 
+        // Create javadoc task for Android module
+
+
         val androidComponents =
             project.extensions.findByName("android") as? com.android.build.gradle.LibraryExtension
                 ?: throw GradleException("Android library plugin is not applied")
+
+        val javadoc = tasks.register("javadoc", Javadoc::class.java) {
+            source = androidComponents.sourceSets.getByName("main").java.getSourceFiles()
+            classpath += files(androidComponents.bootClasspath.joinToString(File.pathSeparator))
+            isFailOnError = false
+        }
 
         val sourcesJar = project.tasks.register("sourcesJar", Jar::class.java) {
             archiveClassifier.set("sources")
@@ -47,90 +60,83 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
         }
 
         val javadocJar = project.tasks.register("javadocJar", Jar::class.java) {
+            dependsOn(javadoc)
             archiveClassifier.set("javadoc")
-            from(project.layout.buildDirectory.dir("docs/javadoc"))
+            from(javadoc.get().destinationDir)
         }
 
         project.afterEvaluate {
-            val androidComponent = project.components.findByName("release")
-            if (androidComponent == null) {
-                logger.error("❌ 'release' component not found — make sure this is an Android library module")
-                return@afterEvaluate
-            }
-
             project.extensions.configure(PublishingExtension::class.java) {
-                publications {
-                    val mavenPublication = (findByName("maven") as? MavenPublication) ?: create(
-                        "maven",
-                        MavenPublication::class.java
-                    )
+                publications.register("maven", MavenPublication::class.java) {
+                    val androidComponent = project.components.findByName(ext.componentName)
+                    if (androidComponent == null) {
+                        logger.error("❌ 'release' component not found — make sure this is an Android library module")
+                        return@register
+                    }
 
-                    mavenPublication.apply {
-                        from(androidComponent)
-                        groupId = project.findProperty("GROUP")?.toString()
-                        artifactId = project.findProperty("POM_ARTIFACT_ID")?.toString()
-                        version = project.findProperty("VERSION_NAME")?.toString()
+                    from(androidComponent)
+                    groupId = ext.groupId ?: project.findProperty("GROUP")?.toString()
+                    artifactId =
+                        ext.artifactId ?: project.findProperty("POM_ARTIFACT_ID")?.toString()
+                    version = ext.version ?: project.findProperty("VERSION_NAME")?.toString()
 
-                        // IMPORTANT: sources and javadoc JARs MUST have classifiers and must NOT replace the AAR
-                        if (!artifacts.any { it.classifier == "sources" && it.extension == "jar" }) {
-                            artifact(sourcesJar.get()) {
-                                classifier = "sources"
-                                extension = "jar" // Optional but explicit
+                    // IMPORTANT: sources and javadoc JARs MUST have classifiers and must NOT replace the AAR
+//                    if (!artifacts.any { it.classifier == "sources" && it.extension == "jar" }) {
+//                        artifact(sourcesJar.get()) {
+//                            classifier = "sources"
+//                            extension = "jar" // Optional but explicit
+//                        }
+//                    }
+//
+//                    if (!artifacts.any { it.classifier == "javadoc" && it.extension == "jar" }) {
+//                        artifact(javadocJar.get()) {
+//                            classifier = "javadoc"
+//                            extension = "jar"
+//                        }
+//                    }
+
+                    pom {
+                        name.set(project.findProperty("POM_NAME")?.toString())
+                        description.set(project.findProperty("POM_DESCRIPTION")?.toString())
+                        url.set(project.findProperty("POM_URL")?.toString())
+
+                        licenses {
+                            license {
+                                name.set(project.findProperty("POM_LICENSE_NAME")?.toString())
+                                url.set(project.findProperty("POM_LICENSE_URL")?.toString())
+                                distribution.set(
+                                    project.findProperty("POM_LICENSE_DIST")?.toString()
+                                )
                             }
                         }
 
-                        if (!artifacts.any { it.classifier == "javadoc" && it.extension == "jar" }) {
-                            artifact(javadocJar.get()) {
-                                classifier = "javadoc"
-                                extension = "jar"
+                        developers {
+                            developer {
+                                id.set(project.findProperty("POM_DEVELOPER_ID")?.toString())
+                                name.set(project.findProperty("POM_DEVELOPER_NAME")?.toString())
+                                url.set(project.findProperty("POM_DEVELOPER_URL")?.toString())
                             }
                         }
 
-                        pom {
-                            name.set(project.findProperty("POM_NAME")?.toString())
-                            description.set(project.findProperty("POM_DESCRIPTION")?.toString())
-                            url.set(project.findProperty("POM_URL")?.toString())
-
-                            licenses {
-                                license {
-                                    name.set(project.findProperty("POM_LICENSE_NAME")?.toString())
-                                    url.set(project.findProperty("POM_LICENSE_URL")?.toString())
-                                    distribution.set(
-                                        project.findProperty("POM_LICENSE_DIST")?.toString()
-                                    )
-                                }
-                            }
-
-                            developers {
-                                developer {
-                                    id.set(project.findProperty("POM_DEVELOPER_ID")?.toString())
-                                    name.set(project.findProperty("POM_DEVELOPER_NAME")?.toString())
-                                    url.set(project.findProperty("POM_DEVELOPER_URL")?.toString())
-                                }
-                            }
-
-                            scm {
-                                url.set(project.findProperty("POM_SCM_URL")?.toString())
-                                connection.set(
-                                    project.findProperty("POM_SCM_CONNECTION")?.toString()
-                                )
-                                developerConnection.set(
-                                    project.findProperty("POM_SCM_DEV_CONNECTION")?.toString()
-                                )
-                            }
+                        scm {
+                            url.set(project.findProperty("POM_SCM_URL")?.toString())
+                            connection.set(
+                                project.findProperty("POM_SCM_CONNECTION")?.toString()
+                            )
+                            developerConnection.set(
+                                project.findProperty("POM_SCM_DEV_CONNECTION")?.toString()
+                            )
                         }
                     }
                 }
+
             }
 
-            project.tasks.matching { it.name == "generateMetadataFileForMavenPublication" }.configureEach {
-                dependsOn(sourcesJar, javadocJar)
+            project.extensions.configure(PublishingExtension::class.java) {
+                publications.withType(MavenPublication::class.java).configureEach {
+                    artifact(javadocJar.get())
+                }
             }
-
-            project.tasks.matching { it.name=="signMavenPublications" }.configureEach {
-                dependsOn("releaseSourcesJar")
-            }
-
 
             project.pluginManager.apply("signing")
             extensions.configure(org.gradle.plugins.signing.SigningExtension::class.java) {
@@ -152,57 +158,72 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
             }
         }
 
-        val packageArtifacts = tasks.register("packageArtifacts") {
-            group = "publishing"
-            dependsOn(project.tasks.getByName("clean"))
-            dependsOn("publishToMavenLocal")
+        fun packageArtifacts() {
+            val groupId = project.findProperty("GROUP").toString()
+            val artifactId = project.findProperty("POM_ARTIFACT_ID").toString()
+            val version = project.findProperty("VERSION_NAME").toString()
 
-            doLast {
-                val groupId = project.findProperty("GROUP").toString()
-                val artifactId = project.findProperty("POM_ARTIFACT_ID").toString()
-                val version = project.findProperty("VERSION_NAME").toString()
+            getOutputsFiles(artifactId, version)
+            getLibsFiles(artifactId, version)
+            getPublicationsFiles(artifactId, version)
 
-                getOutputsFiles(artifactId, version)
-                getLibsFiles(artifactId, version)
-                getPublicationsFiles(artifactId, version)
+            val filesToZip =
+                layout.buildDirectory.dir("central-portal-bundle").get().asFile.listFiles()
 
-                val filesToZip =
-                    layout.buildDirectory.dir("central-portal-bundle").get().asFile.listFiles()
-
-                val outputZip = layout.buildDirectory.file("central-portal-upload.zip").get().asFile
-                ZipOutputStream(FileOutputStream(outputZip)).use { zipOut ->
-                    filesToZip?.forEach { file ->
-                        zipOut.putNextEntry(
-                            ZipEntry(
-                                "${
-                                    groupId.replace(
-                                        ".", "/"
-                                    )
-                                }/$artifactId/$version/${file.name}"
-                            )
+            val outputZip = layout.buildDirectory.file("central-portal-upload.zip").get().asFile
+            ZipOutputStream(FileOutputStream(outputZip)).use { zipOut ->
+                filesToZip?.forEach { file ->
+                    zipOut.putNextEntry(
+                        ZipEntry(
+                            "${
+                                groupId.replace(
+                                    ".", "/"
+                                )
+                            }/$artifactId/$version/${file.name}"
                         )
-                        file.inputStream().use { it.copyTo(zipOut) }
-                        zipOut.closeEntry()
-                    }
+                    )
+                    file.inputStream().use { it.copyTo(zipOut) }
+                    zipOut.closeEntry()
                 }
+            }
 
-                println("✅ Packaged artifacts into ${outputZip.name}")
+            println("✅ Packaged artifacts into ${outputZip.name}")
+        }
+
+        tasks.matching { it.name.contains("generateMetadataFileForMavenPublication") }
+            .configureEach {
+                dependsOn(sourcesJar, javadocJar)
+            }
+
+        tasks.named("build").configure {
+            mustRunAfter("clean")
+        }
+
+        tasks.named("publishToMavenLocal").configure {
+            mustRunAfter("build")
+        }
+
+        tasks.register("fakeUpload")
+        {
+            group = "publishing"
+            dependsOn("clean", "build", "publishToMavenLocal")
+            doLast {
+                packageArtifacts()
             }
         }
 
-        tasks.register("fakeUpload") {
+        tasks.register("uploadToCentralPortal")
+        {
             group = "publishing"
-            dependsOn(packageArtifacts)
-        }
+            dependsOn("clean", "build", "publishToMavenLocal")
 
-        tasks.register("uploadToCentralPortal") {
-            group = "publishing"
-            dependsOn(packageArtifacts)
             val pomVersion = project.findProperty("VERSION_NAME").toString()
             val pomName = project.findProperty("POM_NAME").toString()
             val publishingTypeValue = project.findProperty("POM_PUBLISHING_TYPE").toString()
 
             doLast {
+                packageArtifacts()
+
                 val username = localProperties.getValue("mavenCentralUsername").toString()
                 val password = localProperties.getValue("mavenCentralPassword").toString()
                 val uploadFile = layout.buildDirectory.dir("central-portal-upload.zip").get().asFile
@@ -217,7 +238,6 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
                 )
             }
         }
-
     }
 
     private fun Project.getOutputsFiles(artifactId: String, version: String) {

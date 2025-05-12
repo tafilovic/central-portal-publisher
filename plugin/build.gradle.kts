@@ -17,6 +17,12 @@ plugins {
     alias(libs.plugins.plugin.publish)
 }
 
+java{
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(17))
+    }
+}
+
 dependencies {
     //compileOnly("com.android.tools.build:gradle:8.9.2")
     compileOnly(libs.gradle.build.tools)
@@ -29,73 +35,89 @@ dependencies {
 }
 
 group = "io.github.tafilovic"
-version = "1.0.6"
-
-// Read property to determine which plugin to register
-val publishTarget = findProperty("publishTarget")?.toString()?.lowercase() ?: "central"
+version = "0.0.7"
 
 gradlePlugin {
     website = "https://github.com/tafilovic/central-portal-publisher"
     vcsUrl = "https://github.com/tafilovic/central-portal-publisher.git"
     plugins {
-        if (publishTarget == "central") {
-            register("centralPortalPlugin") {
-                id = "central.portal.publisher"
-                implementationClass = "io.github.tafilovic.CentralPortalPublisherPlugin"
-                displayName = "Central Portal Publishing plugin"
-                description =
-                    "Gradle plugin for use in kotlin and java libraries for publishing to Central Portal"
-                tags =
-                    listOf("central", "portal", "publish", "kotlin", "java", "library", "android")
-            }
-        }
-
-        if (publishTarget == "gradle") {
-            register("gradlePortalPlugin") {
-                id = "io.github.tafilovic.central-portal-publisher"
-                implementationClass = "io.github.tafilovic.CentralPortalPublisherPlugin"
-                displayName = "Central Portal Publishing plugin"
-                description =
-                    "Gradle plugin for use in kotlin and java libraries for publishing to Central Portal"
-                tags =
-                    listOf("central", "portal", "publish", "kotlin", "java", "library", "android")
-            }
+        register("centralPortalPlugin") {
+            id = "central.portal.publisher"
+            implementationClass = "io.github.tafilovic.CentralPortalPublisherPlugin"
+            displayName = "Central Portal Publishing plugin"
+            description =
+                "Gradle plugin for use in kotlin and java libraries for publishing to Central Portal"
+            tags =
+                listOf("central", "portal", "publish", "kotlin", "java", "library", "android")
         }
     }
 }
 
-tasks.register("publishToGradlePortal") {
-    dependsOn("publishPlugins")
-    doFirst {
-        ext["publishTarget"] = "gradle"
-    }
-}
-
-tasks.register("publishToMavenCentral") {
-    dependsOn("publishAllPublicationsToMavenCentralPortal")
-    doFirst {
-        ext["publishTarget"] = "central"
-    }
-}
-
-afterEvaluate {
-    if (project.hasProperty("signing.keyId") && project.hasProperty("signing.password") && project.hasProperty(
-            "signing.secretKeyRingFile"
-        )
-    ) {
-        project.pluginManager.apply("signing")
-        val signingKeyId: String = project.findProperty("signing.keyId")?.toString() ?: ""
-        val signingPassword: String = project.findProperty("signing.password")?.toString() ?: ""
-        val file =
-            project.findProperty("signing.secretKeyRingFile")?.toString()?.let { file(it) }
-        val signingKeyFile: String? =
-            file?.bufferedReader(Charsets.UTF_8).use { it?.readText()?.trim() }
-
-        println("SigningKey: $signingKeyId")
-
-        extensions.configure(SigningExtension::class.java) {
-            useInMemoryPgpKeys(signingKeyId, signingKeyFile, signingPassword)
-            sign(publishing.publications)
-        }
-    }
-}
+// Read property to determine which plugin to register
+//val publishTarget = findProperty("publishTarget")?.toString()?.lowercase() ?: "central"
+//
+//gradlePlugin {
+//    website = "https://github.com/tafilovic/central-portal-publisher"
+//    vcsUrl = "https://github.com/tafilovic/central-portal-publisher.git"
+//    plugins {
+//        if (publishTarget == "central") {
+//            register("centralPortalPlugin") {
+//                id = "central.portal.publisher"
+//                implementationClass = "io.github.tafilovic.CentralPortalPublisherPlugin"
+//                displayName = "Central Portal Publishing plugin"
+//                description =
+//                    "Gradle plugin for use in kotlin and java libraries for publishing to Central Portal"
+//                tags =
+//                    listOf("central", "portal", "publish", "kotlin", "java", "library", "android")
+//            }
+//        }
+//
+//        if (publishTarget == "gradle") {
+//            register("gradlePortalPlugin") {
+//                id = "io.github.tafilovic.central-portal-publisher"
+//                implementationClass = "io.github.tafilovic.CentralPortalPublisherPlugin"
+//                displayName = "Central Portal Publishing plugin"
+//                description =
+//                    "Gradle plugin for use in kotlin and java libraries for publishing to Central Portal"
+//                tags =
+//                    listOf("central", "portal", "publish", "kotlin", "java", "library", "android")
+//            }
+//        }
+//    }
+//}
+//
+//tasks.register("publishToGradlePortal") {
+//    dependsOn("publishPlugins")
+//    doFirst {
+//        ext["publishTarget"] = "gradle"
+//    }
+//}
+//
+//tasks.register("publishToMavenCentral") {
+//    dependsOn("publishAllPublicationsToMavenCentralPortal")
+//    doFirst {
+//        ext["publishTarget"] = "central"
+//    }
+//}
+//
+//afterEvaluate {
+//    if (project.hasProperty("signing.keyId") && project.hasProperty("signing.password") && project.hasProperty(
+//            "signing.secretKeyRingFile"
+//        )
+//    ) {
+//        project.pluginManager.apply("signing")
+//        val signingKeyId: String = project.findProperty("signing.keyId")?.toString() ?: ""
+//        val signingPassword: String = project.findProperty("signing.password")?.toString() ?: ""
+//        val file =
+//            project.findProperty("signing.secretKeyRingFile")?.toString()?.let { file(it) }
+//        val signingKeyFile: String? =
+//            file?.bufferedReader(Charsets.UTF_8).use { it?.readText()?.trim() }
+//
+//        println("SigningKey: $signingKeyId")
+//
+//        extensions.configure(SigningExtension::class.java) {
+//            useInMemoryPgpKeys(signingKeyId, signingKeyFile, signingPassword)
+//            sign(publishing.publications)
+//        }
+//    }
+//}
