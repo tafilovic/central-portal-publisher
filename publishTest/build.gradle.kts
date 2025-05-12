@@ -34,7 +34,8 @@ android {
 }
 
 dependencies {
-
+    //implementation(libs.core.common)
+    implementation(libs.annotation)
     implementation(libs.appcompat.v7)
     testImplementation(libs.junit)
     androidTestImplementation(libs.runner)

@@ -2,6 +2,8 @@
 # https://docs.gradle.org/current/userguide/platforms.html#sub::toml-dependencies-format
 
 [versions]
+annotationVersion = "1.9.1"
+coreCommonVersion = "2.2.0"
 kotlinJvm = "2.0.20"
 pluginPublish = "1.2.1"
 agpVersion = "8.9.2"
@@ -14,6 +16,8 @@ appcompatV7Version = "28.0.0"
 dokkaVersion = "2.0.0"
 
 [libraries]
+annotation = { module = "androidx.annotation:annotation", version.ref = "annotationVersion" }
+core-common = { module = "androidx.arch.core:core-common", version.ref = "coreCommonVersion" }
 gradle-build-tools = { group = "com.android.tools.build", name = "gradle", version.ref = "agpVersion" }
 okhttp3 = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttpVersion" }
 okhttp3-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttpVersion" }

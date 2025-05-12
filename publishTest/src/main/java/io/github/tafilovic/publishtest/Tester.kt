@@ -1,7 +1,8 @@
 package io.github.tafilovic.publishtest
 
-import android.support.annotation.Keep
 import android.support.annotation.NonNull
+import androidx.annotation.Keep
+
 
 @Keep
 class Tester {
