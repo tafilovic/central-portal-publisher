@@ -1,7 +1,7 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
-    id("central.portal.publisher") version "0.0.7"
+    id("central.portal.publisher") version "2.0.3"
 }
 
 android {

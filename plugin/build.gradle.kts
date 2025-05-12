@@ -17,7 +17,7 @@ plugins {
     alias(libs.plugins.plugin.publish)
 }
 
-java{
+java {
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(17))
     }
@@ -35,7 +35,7 @@ dependencies {
 }
 
 group = "io.github.tafilovic"
-version = "2.0.1"
+version = "2.0.3"
 
 gradlePlugin {
     website = "https://github.com/tafilovic/central-portal-publisher"

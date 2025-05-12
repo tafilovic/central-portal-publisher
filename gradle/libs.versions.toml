@@ -11,17 +11,19 @@ junitVersion = "4.13.2"
 runnerVersion = "1.0.2"
 espressoCoreVersion = "3.0.2"
 appcompatV7Version = "28.0.0"
+dokkaVersion = "2.0.0"
 
 [libraries]
 gradle-build-tools = { group = "com.android.tools.build", name = "gradle", version.ref = "agpVersion" }
 okhttp3 = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttpVersion" }
 okhttp3-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttpVersion" }
-kotlin-test-junit5={group="org.jetbrains.kotlin",name="kotlin-test-junit5"}
-junit-platform-launcher={group="org.junit.platform",name="junit-platform-launcher"}
+kotlin-test-junit5 = { group = "org.jetbrains.kotlin", name = "kotlin-test-junit5" }
+junit-platform-launcher = { group = "org.junit.platform", name = "junit-platform-launcher" }
 junit = { group = "junit", name = "junit", version.ref = "junitVersion" }
 runner = { group = "com.android.support.test", name = "runner", version.ref = "runnerVersion" }
 espresso-core = { group = "com.android.support.test.espresso", name = "espresso-core", version.ref = "espressoCoreVersion" }
 appcompat-v7 = { group = "com.android.support", name = "appcompat-v7", version.ref = "appcompatV7Version" }
+
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlinJvm" }
@@ -29,4 +31,5 @@ plugin-publish = { id = "com.gradle.plugin-publish", version.ref = "pluginPublis
 android-library = { id = "com.android.library", version.ref = "agpVersion" }
 android-application = { id = "com.android.application", version.ref = "agpVersion" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlinVersion" }
+dokka-javadoc = { id = "org.jetbrains.dokka-javadoc", version.ref = "dokkaVersion" }
 

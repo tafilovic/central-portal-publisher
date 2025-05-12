@@ -14,7 +14,6 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
-import org.gradle.api.tasks.javadoc.Javadoc
 import org.gradle.jvm.tasks.Jar
 import java.io.File
 import java.io.FileOutputStream
@@ -48,21 +47,14 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
             project.extensions.findByName("android") as? com.android.build.gradle.LibraryExtension
                 ?: throw GradleException("Android library plugin is not applied")
 
-        val javadoc = tasks.register("javadoc", Javadoc::class.java) {
-            source = androidComponents.sourceSets.getByName("main").java.getSourceFiles()
-            classpath += files(androidComponents.bootClasspath.joinToString(File.pathSeparator))
-            isFailOnError = false
+        val javadocJar = project.tasks.register("javadocJar", Jar::class.java) {
+            archiveClassifier.set("javadoc")
+            from(project.layout.buildDirectory.dir("docs/javadoc"))
         }
 
         val sourcesJar = project.tasks.register("sourcesJar", Jar::class.java) {
             archiveClassifier.set("sources")
             from(androidComponents.sourceSets.getByName("main").java.srcDirs)
-        }
-
-        val javadocJar = project.tasks.register("javadocJar", Jar::class.java) {
-            dependsOn(javadoc)
-            archiveClassifier.set("javadoc")
-            from(javadoc.get().destinationDir)
         }
 
         project.afterEvaluate {
@@ -134,7 +126,7 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
 
             project.extensions.configure(PublishingExtension::class.java) {
                 publications.withType(MavenPublication::class.java).configureEach {
-                    artifact(javadocJar.get())
+                    artifact(javadocJar)
                 }
             }
 
