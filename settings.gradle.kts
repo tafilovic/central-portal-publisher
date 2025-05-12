@@ -31,4 +31,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "CentralPortalPublisher"
 include("plugin")
-include(":publishTest")
+//include(":publishTest")
