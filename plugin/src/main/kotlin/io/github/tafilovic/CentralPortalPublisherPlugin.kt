@@ -72,21 +72,6 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
                         ext.artifactId ?: project.findProperty("POM_ARTIFACT_ID")?.toString()
                     version = ext.version ?: project.findProperty("VERSION_NAME")?.toString()
 
-                    // IMPORTANT: sources and javadoc JARs MUST have classifiers and must NOT replace the AAR
-//                    if (!artifacts.any { it.classifier == "sources" && it.extension == "jar" }) {
-//                        artifact(sourcesJar.get()) {
-//                            classifier = "sources"
-//                            extension = "jar" // Optional but explicit
-//                        }
-//                    }
-//
-//                    if (!artifacts.any { it.classifier == "javadoc" && it.extension == "jar" }) {
-//                        artifact(javadocJar.get()) {
-//                            classifier = "javadoc"
-//                            extension = "jar"
-//                        }
-//                    }
-
                     pom {
                         name.set(project.findProperty("POM_NAME")?.toString())
                         description.set(project.findProperty("POM_DESCRIPTION")?.toString())
@@ -151,12 +136,13 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
         }
 
         fun packageArtifacts() {
-            val groupId = project.findProperty("GROUP").toString()
-            val artifactId = project.findProperty("POM_ARTIFACT_ID").toString()
-            val version = project.findProperty("VERSION_NAME").toString()
+            val groupId = ext.groupId ?: project.findProperty("GROUP")?.toString()
+            val artifactId =
+                ext.artifactId ?: project.findProperty("POM_ARTIFACT_ID")?.toString()
+            val version = ext.version ?: project.findProperty("VERSION_NAME")?.toString()
 
-            getOutputsFiles(artifactId, version)
-            getLibsFiles(artifactId, version)
+            getOutputsFiles(artifactId, version, ext)
+            getLibsFiles(artifactId, version, ext)
             getPublicationsFiles(artifactId, version)
 
             val filesToZip =
@@ -168,7 +154,7 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
                     zipOut.putNextEntry(
                         ZipEntry(
                             "${
-                                groupId.replace(
+                                groupId?.replace(
                                     ".", "/"
                                 )
                             }/$artifactId/$version/${file.name}"
@@ -232,10 +218,19 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
         }
     }
 
-    private fun Project.getOutputsFiles(artifactId: String, version: String) {
+    private fun Project.getOutputsFiles(
+        artifactId: String?,
+        version: String?,
+        extension: CentralPortalExtension
+    ) {
         val bundleDir = layout.buildDirectory.dir("central-portal-bundle").get()
         val outputsFiles = layout.buildDirectory.files("outputs/aar").asFileTree.files
-        outputsFiles.forEach { file ->
+        val flavorName = extension.flavorName
+        val filteredFiles = outputsFiles.filter { file ->
+            flavorName?.let { file.name.contains(it) } == true &&
+                    file.name.contains("-debug") == false
+        }
+        filteredFiles.forEach { file ->
             val ext = if (file.name.endsWith(".aar")) "aar" else "aar.asc"
             val updatedName = "$artifactId-$version.${ext}"
             val target = bundleDir.asFile.resolve(updatedName)
@@ -254,11 +249,19 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
         }
     }
 
-    private fun Project.getLibsFiles(artifactId: String, version: String) {
+    private fun Project.getLibsFiles(
+        artifactId: String?,
+        version: String?,
+        extension: CentralPortalExtension
+    ) {
         val bundleDir = layout.buildDirectory.dir("central-portal-bundle").get()
         val libFiles = layout.buildDirectory.files("libs").asFileTree.files
+        val flavor = extension.flavorName
 
-        libFiles.forEach { file ->
+        libFiles.filter { file ->
+            file.name.contains("${flavor}-sources") ||
+                    file.name.contains("-javadoc") == true
+        }.forEach { file ->
             val ext = if (file.name.endsWith(".jar")) "jar" else "jar.asc"
             val suffix = if (file.name.contains("javadoc")) "javadoc" else "sources"
             val updatedName = "$artifactId-$version-$suffix.${ext}"
@@ -278,7 +281,7 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
         }
     }
 
-    private fun Project.getPublicationsFiles(artifactId: String, version: String) {
+    private fun Project.getPublicationsFiles(artifactId: String?, version: String?) {
         val bundleDir = layout.buildDirectory.dir("central-portal-bundle").get()
         val libFiles = layout.buildDirectory.files("publications/maven").asFileTree.files
 

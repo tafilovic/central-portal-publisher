@@ -4,6 +4,6 @@ abstract class CentralPortalExtension {
     var groupId: String? = null
     var artifactId: String? = null
     var version: String? = null
-
+    var flavorName: String? = null
     var componentName: String = "release"
 }

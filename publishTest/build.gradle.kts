@@ -1,7 +1,7 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
-    id("central.portal.publisher") version "2.0.3"
+    id("central.portal.publisher") version "2.0.4"
 }
 
 android {
@@ -31,6 +31,21 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    buildFeatures {
+        flavorDimensions += listOf("main")
+    }
+
+    productFlavors {
+        create("prod") {
+            dimension = flavorDimensions[0]
+            minSdk = 24
+        }
+        create("tst") {
+            dimension = flavorDimensions[0]
+            minSdk = 32
+        }
+    }
 }
 
 dependencies {
@@ -43,7 +58,11 @@ dependencies {
 }
 
 centralPortalPublisher {
-    componentName="release"
+    componentName = "prodRelease"
+    groupId = project.property("GROUP").toString()
+    artifactId = project.property("POM_ARTIFACT_ID").toString()
+    version = project.property("VERSION_NAME").toString()
+    flavorName="prod-release"
 }
 
 //afterEvaluate {
