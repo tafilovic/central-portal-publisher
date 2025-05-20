@@ -1,7 +1,12 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
-    id("central.portal.publisher") version "2.0.4"
+
+    // for localMaven
+    // id("central.portal.publisher") version "2.0.4"
+
+    // for JitPack
+    id("central.portal.publisher")
 }
 
 android {
