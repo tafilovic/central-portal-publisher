@@ -117,20 +117,31 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
 
             project.pluginManager.apply("signing")
             extensions.configure(org.gradle.plugins.signing.SigningExtension::class.java) {
-                if (localProperties.containsKey("signing.keyId") &&
-                    localProperties.containsKey("signing.password") &&
-                    localProperties.containsKey("signing.secretKeyRingFile")
-                ) {
-                    val signingKeyId = localProperties.getValue("signing.keyId") as String?
-                    val signingPassword = localProperties.getValue("signing.password") as String?
-                    val signingKeyFile = localProperties.getValue("signing.secretKeyRingFile")
-                        ?.let { file(it).readText() }
+                val keyId = localProperties["signing.keyId"] as String?
+                val keyPassword = localProperties["signing.password"] as String?
 
-                    println("SigningKey: $signingKeyId")
+                // Option 1: .asc file on disk
+                val keyFile = (localProperties["signing.secretKeyRingFile"] as String?)?.let {
+                    file(it).takeIf { f -> f.exists() }?.readText()
+                }
 
-                    useInMemoryPgpKeys(signingKeyId, signingKeyFile, signingPassword)
+                // Option 2: base64 in GitHub secret
+                val keyBase64 = localProperties["signing.keyBase64"] as String?
+                val keyDecoded = keyBase64?.let {
+                    String(java.util.Base64.getDecoder().decode(it))
+                }
+
+                val signingKey = keyFile ?: keyDecoded
+
+                if (keyId != null && keyPassword != null && signingKey != null) {
+                    println("🔐 Using signing key: $keyId (source: ${if (keyFile != null) "file" else "base64"})")
+
+                    useInMemoryPgpKeys(keyId, signingKey, keyPassword)
                     sign(extensions.getByType(PublishingExtension::class.java).publications)
-                    println("✅ Signed artifacts! ")
+
+                    println("✅ Signed artifacts")
+                } else {
+                    println("⚠️ Signing skipped: missing parameters")
                 }
             }
         }
