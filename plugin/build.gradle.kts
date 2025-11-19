@@ -35,7 +35,7 @@ dependencies {
 }
 
 group = "io.github.tafilovic"
-version = "2.0.5"
+version = "2.0.6"
 
 gradlePlugin {
     website = "https://github.com/tafilovic/central-portal-publisher"

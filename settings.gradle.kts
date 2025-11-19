@@ -31,4 +31,5 @@ dependencyResolutionManagement {
 }
 rootProject.name = "CentralPortalPublisher"
 include("plugin")
-include(":publishTest")
+// The bottom line must be excluded (commented out) when publishing for JitPack
+// include(":publishTest")
