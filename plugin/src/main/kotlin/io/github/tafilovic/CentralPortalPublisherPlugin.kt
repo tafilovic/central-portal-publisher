@@ -13,18 +13,26 @@ import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.publish.PublishingExtension
+import org.gradle.api.publish.maven.MavenArtifact
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.jvm.tasks.Jar
 import java.io.File
 import java.io.FileOutputStream
-import java.util.Base64
+import okhttp3.Credentials
+import okio.ByteString.Companion.decodeBase64
 import java.util.Properties
 import java.util.concurrent.TimeUnit
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 /**
- * A simple 'hello world' plugin.
+ * Gradle plugin that packages and uploads Android library artifacts to Sonatype Central Portal.
+ *
+ * Responsibilities:
+ * - Configure a Maven publication from an Android library component
+ * - Attach metadata (POM) and javadoc artifacts
+ * - Collect and bundle all publishable artifacts with checksums/signatures
+ * - Upload the bundle to Central Portal
  */
 class CentralPortalPublisherPlugin : Plugin<Project> {
     override fun apply(project: Project): Unit = with(project) {
@@ -40,24 +48,19 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
             }
         }
 
-        // Create javadoc task for Android module
-
-
+        // Android Library plugin is required to expose a publishable component.
         val androidComponents =
             project.extensions.findByName("android") as? com.android.build.gradle.LibraryExtension
                 ?: throw GradleException("Android library plugin is not applied")
 
+        // Javadoc artifact published alongside the AAR.
         val javadocJar = project.tasks.register("javadocJar", Jar::class.java) {
             archiveClassifier.set("javadoc")
             from(project.layout.buildDirectory.dir("docs/javadoc"))
         }
 
-        val sourcesJar = project.tasks.register("sourcesJar", Jar::class.java) {
-            archiveClassifier.set("sources")
-            from(androidComponents.sourceSets.getByName("main").java.srcDirs)
-        }
-
         project.afterEvaluate {
+            // Configure Maven publication and POM metadata.
             project.extensions.configure(PublishingExtension::class.java) {
                 publications.register("maven", MavenPublication::class.java) {
                     val androidComponent = project.components.findByName(ext.componentName)
@@ -109,12 +112,14 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
 
             }
 
+            // Attach additional artifacts to all Maven publications.
             project.extensions.configure(PublishingExtension::class.java) {
                 publications.withType(MavenPublication::class.java).configureEach {
                     artifact(javadocJar)
                 }
             }
 
+            // Optional signing for all publications.
             project.pluginManager.apply("signing")
             extensions.configure(org.gradle.plugins.signing.SigningExtension::class.java) {
                 val keyId = localProperties["signing.keyId"] as String?
@@ -127,9 +132,7 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
 
                 // Option 2: base64 in GitHub secret
                 val keyBase64 = localProperties["signing.keyBase64"] as String?
-                val keyDecoded = keyBase64?.let {
-                    String(java.util.Base64.getDecoder().decode(it))
-                }
+                val keyDecoded = keyBase64?.decodeBase64()?.utf8()
 
                 val signingKey = keyFile ?: keyDecoded
 
@@ -152,12 +155,21 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
                 ext.artifactId ?: project.findProperty("POM_ARTIFACT_ID")?.toString()
             val version = ext.version ?: project.findProperty("VERSION_NAME")?.toString()
 
-            getOutputsFiles(artifactId, version, ext)
-            getLibsFiles(artifactId, version, ext)
+            val bundleDir = layout.buildDirectory.dir("central-portal-bundle").get().asFile
+            bundleDir.mkdirs()
+
+            // Copy publishable artifacts from the Maven publication.
+            val publication = project.extensions.getByType(PublishingExtension::class.java)
+                .publications.findByName("maven") as? MavenPublication
+            if (publication != null) {
+                copyPublicationArtifacts(publication, bundleDir, artifactId, version)
+            }
+            // Ensure signatures for artifacts built outside the publication directory are included.
+            copySignatureFilesFromBuildOutputs(artifactId, version, ext)
+            // Copy POM/module metadata from the publication output directory.
             getPublicationsFiles(artifactId, version)
 
-            val filesToZip =
-                layout.buildDirectory.dir("central-portal-bundle").get().asFile.listFiles()
+            val filesToZip = bundleDir.listFiles()
 
             val outputZip = layout.buildDirectory.file("central-portal-upload.zip").get().asFile
             ZipOutputStream(FileOutputStream(outputZip)).use { zipOut ->
@@ -179,9 +191,10 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
             println("✅ Packaged artifacts into ${outputZip.name}")
         }
 
+        // Ensure required artifacts exist before Gradle generates module metadata.
         tasks.matching { it.name.contains("generateMetadataFileForMavenPublication") }
             .configureEach {
-                dependsOn(sourcesJar, javadocJar)
+                dependsOn(javadocJar)
             }
 
         tasks.named("build").configure {
@@ -192,6 +205,7 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
             mustRunAfter("build")
         }
 
+        // Build + bundle only (no upload), useful for local verification.
         tasks.register("fakeUpload")
         {
             group = "publishing"
@@ -201,6 +215,7 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
             }
         }
 
+        // Build, bundle, and upload to Central Portal.
         tasks.register("uploadToCentralPortal")
         {
             group = "publishing"
@@ -229,89 +244,96 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
         }
     }
 
-    private fun Project.getOutputsFiles(
+    private fun Project.copyPublicationArtifacts(
+        publication: MavenPublication,
+        bundleDir: File,
         artifactId: String?,
-        version: String?,
-        extension: CentralPortalExtension
+        version: String?
     ) {
-        val bundleDir = layout.buildDirectory.dir("central-portal-bundle").get()
-        val outputsFiles = layout.buildDirectory.files("outputs/aar").asFileTree.files
-        val flavorName = extension.flavorName
-        val filteredFiles = outputsFiles.filter { file ->
-            flavorName?.let { file.name.contains(it) } == true &&
-                    file.name.contains("-debug") == false
-        }
-        filteredFiles.forEach { file ->
-            val ext = if (file.name.endsWith(".aar")) "aar" else "aar.asc"
-            val updatedName = "$artifactId-$version.${ext}"
-            val target = bundleDir.asFile.resolve(updatedName)
-
-            file.copyTo(target = target, overwrite = true)
-
-            if (ext == "aar") {
-                val md5 = bundleDir.asFile.resolve("$artifactId-$version.$ext.md5")
-                val md5Data = target.md5().toByteArray()
-                md5.writeBytes(md5Data)
-
-                val sha1 = bundleDir.asFile.resolve("$artifactId-$version.$ext.sha1")
-                val sha1Data = target.sha1().toByteArray()
-                sha1.writeBytes(sha1Data)
+        // Copy each published artifact and generate checksums for non-signature files.
+        publication.artifacts.forEach { artifact: MavenArtifact ->
+            val file = artifact.file
+            if (!file.exists()) return@forEach
+            val ext = artifact.extension ?: ""
+            val classifier = artifact.classifier
+            val name = buildString {
+                append("$artifactId-$version")
+                if (!classifier.isNullOrBlank()) append("-$classifier")
+                append(".$ext")
             }
-        }
-    }
-
-    private fun Project.getLibsFiles(
-        artifactId: String?,
-        version: String?,
-        extension: CentralPortalExtension
-    ) {
-        val bundleDir = layout.buildDirectory.dir("central-portal-bundle").get()
-        val libFiles = layout.buildDirectory.files("libs").asFileTree.files
-        val flavor = extension.flavorName
-
-        libFiles.filter { file ->
-            file.name.contains("${flavor}-sources") ||
-                    file.name.contains("-javadoc") == true
-        }.forEach { file ->
-            val ext = if (file.name.endsWith(".jar")) "jar" else "jar.asc"
-            val suffix = if (file.name.contains("javadoc")) "javadoc" else "sources"
-            val updatedName = "$artifactId-$version-$suffix.${ext}"
-            val target = bundleDir.asFile.resolve(updatedName)
-
+            val target = bundleDir.resolve(name)
             file.copyTo(target = target, overwrite = true)
 
-            if (ext == "jar") {
-                val md5 = bundleDir.asFile.resolve("$artifactId-$version-$suffix.$ext.md5")
-                val md5Data = target.md5().toByteArray()
-                md5.writeBytes(md5Data)
-
-                val sha1 = bundleDir.asFile.resolve("$artifactId-$version-$suffix.$ext.sha1")
-                val sha1Data = target.sha1().toByteArray()
-                sha1.writeBytes(sha1Data)
+            if (ext != "asc") {
+                val md5File = bundleDir.resolve("$name.md5")
+                md5File.writeBytes(target.md5().toByteArray())
+                val sha1File = bundleDir.resolve("$name.sha1")
+                sha1File.writeBytes(target.sha1().toByteArray())
             }
         }
     }
 
     private fun Project.getPublicationsFiles(artifactId: String?, version: String?) {
-        val bundleDir = layout.buildDirectory.dir("central-portal-bundle").get()
-        val libFiles = layout.buildDirectory.files("publications/maven").asFileTree.files
+        val bundleDir = layout.buildDirectory.dir("central-portal-bundle").get().asFile
+        val pubFiles = layout.buildDirectory.files("publications/maven").asFileTree.files
 
-        libFiles.forEach { file ->
-            val ext = if (file.name.endsWith(".xml")) "pom" else "pom.asc"
-            val updatedName = "$artifactId-$version.${ext}"
-            val target = bundleDir.asFile.resolve(updatedName)
-
+        pubFiles.forEach { file ->
+            // Normalize file names from Gradle outputs to Maven Central layout.
+            val targetExt = when {
+                file.name == "module.json.asc" -> "module.asc"
+                file.name.endsWith(".pom.asc") -> "pom.asc"
+                file.name.endsWith(".module.asc") -> "module.asc"
+                file.name.endsWith(".aar.asc") -> "aar.asc"
+                file.name.endsWith(".asc") -> "pom.asc"
+                file.name.endsWith(".xml") || file.name.endsWith(".pom") -> "pom"
+                file.name == "module.json" || file.name.endsWith(".module") -> "module"
+                file.name.endsWith(".aar") -> "aar"
+                else -> return@forEach
+            }
+            val updatedName = "$artifactId-$version.$targetExt"
+            val target = bundleDir.resolve(updatedName)
             file.copyTo(target = target, overwrite = true)
 
-            if (ext == "pom") {
-                val md5 = bundleDir.asFile.resolve("$artifactId-$version.$ext.md5")
-                val md5Data = target.md5().toByteArray()
-                md5.writeBytes(md5Data)
-
-                val sha1 = bundleDir.asFile.resolve("$artifactId-$version.$ext.sha1")
-                val sha1Data = target.sha1().toByteArray()
-                sha1.writeBytes(sha1Data)
+            if (!targetExt.endsWith(".asc")) {
+                val md5File = bundleDir.resolve("$updatedName.md5")
+                md5File.writeBytes(target.md5().toByteArray())
+                val sha1File = bundleDir.resolve("$updatedName.sha1")
+                sha1File.writeBytes(target.sha1().toByteArray())
             }
+        }
+    }
+
+    private fun Project.copySignatureFilesFromBuildOutputs(
+        artifactId: String?,
+        version: String?,
+        extension: CentralPortalExtension
+    ) {
+        val bundleDir = layout.buildDirectory.dir("central-portal-bundle").get().asFile
+        val flavorName = extension.flavorName
+
+        // AAR signatures are produced under build/outputs/aar.
+        val aarAscFiles = layout.buildDirectory.files("outputs/aar").asFileTree.files
+            .filter { it.name.endsWith(".aar.asc") }
+            .filter { file ->
+                file.name.contains("-debug").not() &&
+                    (flavorName?.let { file.name.contains(it) } ?: file.name.contains("release"))
+            }
+        aarAscFiles.forEach { file ->
+            val target = bundleDir.resolve("$artifactId-$version.aar.asc")
+            file.copyTo(target = target, overwrite = true)
+        }
+
+        // Javadoc/Sources signatures are produced under build/libs.
+        val jarAscFiles = layout.buildDirectory.files("libs").asFileTree.files
+            .filter { it.name.endsWith(".jar.asc") }
+        jarAscFiles.forEach { file ->
+            val suffix = when {
+                file.name.contains("javadoc") -> "javadoc"
+                file.name.contains("sources") -> "sources"
+                else -> return@forEach
+            }
+            val target = bundleDir.resolve("$artifactId-$version-$suffix.jar.asc")
+            file.copyTo(target = target, overwrite = true)
         }
     }
 
@@ -322,10 +344,11 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
         title: String,
         publishingType: PublishingType = PublishingType.USER_MANAGED
     ) {
+        // Central Portal upload API (multipart bundle upload).
         val loggerInterceptor = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
         }
-        val token = Base64.getEncoder().encodeToString("$username:$password".toByteArray())
+        val token = Credentials.basic(username, password)
 
         val client = OkHttpClient.Builder().addInterceptor(loggerInterceptor)
             .callTimeout(5, TimeUnit.MINUTES).build()
@@ -343,15 +366,30 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
             .build()
 
         val request =
-            Request.Builder().url(url).addHeader("Authorization", "Bearer $token").post(requestBody)
+            Request.Builder().url(url).addHeader("Authorization", token).post(requestBody)
                 .build()
 
-        client.newCall(request).execute().use { response ->
-            val responseBody = response.body?.string() ?: ""
-            if (response.isSuccessful) {
-                println("✅ Upload successful: $responseBody")
-            } else {
-                println("❌ Upload failed: ${response.code} ${response.message}\n$responseBody")
+        val maxAttempts = 5
+        for (attempt in 1..maxAttempts) {
+            try {
+                client.newCall(request).execute().use { response ->
+                    val responseBody = response.body?.string() ?: ""
+                    if (response.isSuccessful) {
+                        println("✅ Upload successful: $responseBody")
+                        return
+                    } else {
+                        println(
+                            "❌ Upload failed (attempt $attempt/$maxAttempts): " +
+                                "${response.code} ${response.message}\n$responseBody"
+                        )
+                    }
+                }
+            } catch (ex: Exception) {
+                println("❌ Upload failed (attempt $attempt/$maxAttempts): ${ex.message}")
+                if (attempt == maxAttempts) throw ex
+            }
+            if (attempt < maxAttempts) {
+                Thread.sleep(2000L * attempt)
             }
         }
     }

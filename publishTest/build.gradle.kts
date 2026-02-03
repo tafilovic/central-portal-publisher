@@ -2,16 +2,13 @@ plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
 
-    // for localMaven
-    // id("central.portal.publisher") version "2.0.4"
-
-    // for JitPack
-    id("central.portal.publisher")
+    // use included build during local development
+    id("io.github.tafilovic.central-portal-publisher")
 }
 
 android {
     namespace = "io.github.tafilovic.publishtest"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 26

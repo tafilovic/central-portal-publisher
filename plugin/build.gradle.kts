@@ -35,14 +35,14 @@ dependencies {
 }
 
 group = "io.github.tafilovic"
-version = "2.0.6"
+version = "2.0.8"
 
 gradlePlugin {
     website = "https://github.com/tafilovic/central-portal-publisher"
     vcsUrl = "https://github.com/tafilovic/central-portal-publisher.git"
     plugins {
         register("centralPortalPlugin") {
-            id = "central.portal.publisher"
+            id = "io.github.tafilovic.central-portal-publisher"
             implementationClass = "io.github.tafilovic.CentralPortalPublisherPlugin"
             displayName = "Central Portal Publishing plugin"
             description =

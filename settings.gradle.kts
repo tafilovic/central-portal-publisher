@@ -31,5 +31,11 @@ dependencyResolutionManagement {
 }
 rootProject.name = "CentralPortalPublisher"
 include("plugin")
-// The bottom line must be excluded (commented out) when publishing for JitPack
-// include(":publishTest")
+// Use local composite build for plugin development (avoid name collision).
+includeBuild("plugin") {
+    name = "plugin-build"
+}
+// Exclude publishTest for JitPack or when explicitly disabled.
+if (System.getenv("JITPACK") == null && !providers.gradleProperty("skipPublishTest").isPresent) {
+    include(":publishTest")
+}
