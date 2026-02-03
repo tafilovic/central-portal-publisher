@@ -1,6 +1,9 @@
 # Ignore Gradle project-specific cache directory
 .gradle
 
+# Local configuration (e.g. SDK path)
+local.properties
+
 # Ignore Gradle build output directory
 build
 *.hprof
