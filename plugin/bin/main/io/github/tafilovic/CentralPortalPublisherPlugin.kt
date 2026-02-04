@@ -48,105 +48,113 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
             }
         }
 
-        // Android Library plugin is required to expose a publishable component.
-        val androidComponents =
+        val publishRequested = isPublishTaskRequested()
+        if (publishRequested) {
+            // Android Library plugin is required to expose a publishable component.
             project.extensions.findByName("android") as? com.android.build.gradle.LibraryExtension
                 ?: throw GradleException("Android library plugin is not applied")
 
-        // Javadoc artifact published alongside the AAR.
-        val javadocJar = project.tasks.register("javadocJar", Jar::class.java) {
-            archiveClassifier.set("javadoc")
-            from(project.layout.buildDirectory.dir("docs/javadoc"))
-        }
+            // Javadoc artifact published alongside the AAR.
+            val javadocJar = project.tasks.register("javadocJar", Jar::class.java) {
+                archiveClassifier.set("javadoc")
+                from(project.layout.buildDirectory.dir("docs/javadoc"))
+            }
 
-        project.afterEvaluate {
-            // Configure Maven publication and POM metadata.
-            project.extensions.configure(PublishingExtension::class.java) {
-                publications.register("maven", MavenPublication::class.java) {
-                    val androidComponent = project.components.findByName(ext.componentName)
-                    if (androidComponent == null) {
-                        logger.error("❌ 'release' component not found — make sure this is an Android library module")
-                        return@register
-                    }
+            project.afterEvaluate {
+                // Configure Maven publication and POM metadata.
+                project.extensions.configure(PublishingExtension::class.java) {
+                    publications.register("maven", MavenPublication::class.java) {
+                        val androidComponent = project.components.findByName(ext.componentName)
+                        if (androidComponent == null) {
+                            logger.error("❌ 'release' component not found — make sure this is an Android library module")
+                            return@register
+                        }
 
-                    from(androidComponent)
-                    groupId = ext.groupId ?: project.findProperty("GROUP")?.toString()
-                    artifactId =
-                        ext.artifactId ?: project.findProperty("POM_ARTIFACT_ID")?.toString()
-                    version = ext.version ?: project.findProperty("VERSION_NAME")?.toString()
+                        from(androidComponent)
+                        groupId = ext.groupId ?: project.findProperty("GROUP")?.toString()
+                        artifactId =
+                            ext.artifactId ?: project.findProperty("POM_ARTIFACT_ID")?.toString()
+                        version = ext.version ?: project.findProperty("VERSION_NAME")?.toString()
 
-                    pom {
-                        name.set(project.findProperty("POM_NAME")?.toString())
-                        description.set(project.findProperty("POM_DESCRIPTION")?.toString())
-                        url.set(project.findProperty("POM_URL")?.toString())
+                        pom {
+                            name.set(project.findProperty("POM_NAME")?.toString())
+                            description.set(project.findProperty("POM_DESCRIPTION")?.toString())
+                            url.set(project.findProperty("POM_URL")?.toString())
 
-                        licenses {
-                            license {
-                                name.set(project.findProperty("POM_LICENSE_NAME")?.toString())
-                                url.set(project.findProperty("POM_LICENSE_URL")?.toString())
-                                distribution.set(
-                                    project.findProperty("POM_LICENSE_DIST")?.toString()
+                            licenses {
+                                license {
+                                    name.set(project.findProperty("POM_LICENSE_NAME")?.toString())
+                                    url.set(project.findProperty("POM_LICENSE_URL")?.toString())
+                                    distribution.set(
+                                        project.findProperty("POM_LICENSE_DIST")?.toString()
+                                    )
+                                }
+                            }
+
+                            developers {
+                                developer {
+                                    id.set(project.findProperty("POM_DEVELOPER_ID")?.toString())
+                                    name.set(project.findProperty("POM_DEVELOPER_NAME")?.toString())
+                                    url.set(project.findProperty("POM_DEVELOPER_URL")?.toString())
+                                }
+                            }
+
+                            scm {
+                                url.set(project.findProperty("POM_SCM_URL")?.toString())
+                                connection.set(
+                                    project.findProperty("POM_SCM_CONNECTION")?.toString()
+                                )
+                                developerConnection.set(
+                                    project.findProperty("POM_SCM_DEV_CONNECTION")?.toString()
                                 )
                             }
                         }
+                    }
 
-                        developers {
-                            developer {
-                                id.set(project.findProperty("POM_DEVELOPER_ID")?.toString())
-                                name.set(project.findProperty("POM_DEVELOPER_NAME")?.toString())
-                                url.set(project.findProperty("POM_DEVELOPER_URL")?.toString())
-                            }
-                        }
+                }
 
-                        scm {
-                            url.set(project.findProperty("POM_SCM_URL")?.toString())
-                            connection.set(
-                                project.findProperty("POM_SCM_CONNECTION")?.toString()
-                            )
-                            developerConnection.set(
-                                project.findProperty("POM_SCM_DEV_CONNECTION")?.toString()
-                            )
-                        }
+                // Attach additional artifacts to all Maven publications.
+                project.extensions.configure(PublishingExtension::class.java) {
+                    publications.withType(MavenPublication::class.java).configureEach {
+                        artifact(javadocJar)
                     }
                 }
 
-            }
+                // Optional signing for all publications.
+                project.pluginManager.apply("signing")
+                extensions.configure(org.gradle.plugins.signing.SigningExtension::class.java) {
+                    val keyId = localProperties["signing.keyId"] as String?
+                    val keyPassword = localProperties["signing.password"] as String?
 
-            // Attach additional artifacts to all Maven publications.
-            project.extensions.configure(PublishingExtension::class.java) {
-                publications.withType(MavenPublication::class.java).configureEach {
-                    artifact(javadocJar)
+                    // Option 1: .asc file on disk
+                    val keyFile = (localProperties["signing.secretKeyRingFile"] as String?)?.let {
+                        file(it).takeIf { f -> f.exists() }?.readText()
+                    }
+
+                    // Option 2: base64 in GitHub secret
+                    val keyBase64 = localProperties["signing.keyBase64"] as String?
+                    val keyDecoded = keyBase64?.decodeBase64()?.utf8()
+
+                    val signingKey = keyFile ?: keyDecoded
+
+                    if (keyId != null && keyPassword != null && signingKey != null) {
+                        println("🔐 Using signing key: $keyId (source: ${if (keyFile != null) "file" else "base64"})")
+
+                        useInMemoryPgpKeys(keyId, signingKey, keyPassword)
+                        sign(extensions.getByType(PublishingExtension::class.java).publications)
+
+                        println("✅ Signed artifacts")
+                    } else {
+                        println("⚠️ Signing skipped: missing parameters")
+                    }
                 }
             }
 
-            // Optional signing for all publications.
-            project.pluginManager.apply("signing")
-            extensions.configure(org.gradle.plugins.signing.SigningExtension::class.java) {
-                val keyId = localProperties["signing.keyId"] as String?
-                val keyPassword = localProperties["signing.password"] as String?
-
-                // Option 1: .asc file on disk
-                val keyFile = (localProperties["signing.secretKeyRingFile"] as String?)?.let {
-                    file(it).takeIf { f -> f.exists() }?.readText()
+            // Ensure required artifacts exist before Gradle generates module metadata.
+            tasks.matching { it.name.contains("generateMetadataFileForMavenPublication") }
+                .configureEach {
+                    dependsOn(javadocJar)
                 }
-
-                // Option 2: base64 in GitHub secret
-                val keyBase64 = localProperties["signing.keyBase64"] as String?
-                val keyDecoded = keyBase64?.decodeBase64()?.utf8()
-
-                val signingKey = keyFile ?: keyDecoded
-
-                if (keyId != null && keyPassword != null && signingKey != null) {
-                    println("🔐 Using signing key: $keyId (source: ${if (keyFile != null) "file" else "base64"})")
-
-                    useInMemoryPgpKeys(keyId, signingKey, keyPassword)
-                    sign(extensions.getByType(PublishingExtension::class.java).publications)
-
-                    println("✅ Signed artifacts")
-                } else {
-                    println("⚠️ Signing skipped: missing parameters")
-                }
-            }
         }
 
         fun packageArtifacts() {
@@ -190,12 +198,6 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
 
             println("✅ Packaged artifacts into ${outputZip.name}")
         }
-
-        // Ensure required artifacts exist before Gradle generates module metadata.
-        tasks.matching { it.name.contains("generateMetadataFileForMavenPublication") }
-            .configureEach {
-                dependsOn(javadocJar)
-            }
 
         tasks.named("build").configure {
             mustRunAfter("clean")
@@ -391,6 +393,17 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
             if (attempt < maxAttempts) {
                 Thread.sleep(2000L * attempt)
             }
+        }
+    }
+
+    private fun Project.isPublishTaskRequested(): Boolean {
+        val taskNames = gradle.startParameter.taskNames
+        if (taskNames.isEmpty()) return false
+        return taskNames.any { name ->
+            name.contains("uploadToCentralPortal", ignoreCase = true) ||
+                name.contains("fakeUpload", ignoreCase = true) ||
+                name.contains("publishToMavenLocal", ignoreCase = true) ||
+                name.contains("publish", ignoreCase = true)
         }
     }
 }

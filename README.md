@@ -17,21 +17,38 @@ Gradle plugin for publishing Android/Kotlin/Java libraries to Sonatype Central P
 
 ## Installation
 
-Plugin Portal:
+### Gradle Plugin Portal (recommended)
+
+Add the plugin in your build script:
 ```
 plugins {
     id("io.github.tafilovic.central-portal-publisher") version "2.0.8"
 }
 ```
 
-JitPack / Local:
+Apply the plugin in the **Android library module** you want to publish
+for example `publishTest/build.gradle.kts`, not in the root build file.
+
+### JitPack
+
+1) Add JitPack to `settings.gradle.kts` (pluginManagement):
+```
+pluginManagement {
+    repositories {
+        maven("https://jitpack.io")
+        gradlePluginPortal()
+    }
+}
+```
+
+2) Apply the plugin with the same ID:
 ```
 plugins {
     id("io.github.tafilovic.central-portal-publisher") version "2.0.8"
 }
 ```
 
-Use the Plugin Portal ID when publishing to plugins.gradle.org.
+Use the same plugin ID for both sources. JitPack uses Git tags as versions.
 
 ## Configuration
 
