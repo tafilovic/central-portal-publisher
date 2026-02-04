@@ -2,6 +2,11 @@ name: Publish Gradle Plugin
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Plugin version to publish (e.g., 2.0.10)"
+        required: true
+        type: string
 
 concurrency:
   group: publish-gradle-plugin
@@ -23,6 +28,16 @@ jobs:
           distribution: "temurin"
           java-version: "17"
           cache: "gradle"
+
+      - name: Update plugin version
+        run: |
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            echo "Missing version input"
+            exit 1
+          fi
+          sed -i.bak -E "s/^version = \".*\"$/version = \"$VERSION\"/" plugin/build.gradle.kts
+          rm -f plugin/build.gradle.kts.bak
 
       - name: Publish to Gradle Plugin Portal
         env:
