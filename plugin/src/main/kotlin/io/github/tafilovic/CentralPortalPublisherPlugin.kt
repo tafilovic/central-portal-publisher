@@ -208,7 +208,7 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
         }
 
         // Build + bundle only (no upload), useful for local verification.
-        tasks.register("fakeUpload")
+        tasks.register("packageArtifactsOnly")
         {
             group = "publishing"
             dependsOn("clean", "build", "publishToMavenLocal")
