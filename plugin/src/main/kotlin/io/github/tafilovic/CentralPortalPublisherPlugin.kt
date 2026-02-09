@@ -401,7 +401,7 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
         if (taskNames.isEmpty()) return false
         return taskNames.any { name ->
             name.contains("uploadToCentralPortal", ignoreCase = true) ||
-                name.contains("fakeUpload", ignoreCase = true) ||
+                name.contains("packageArtifactsOnly", ignoreCase = true) ||
                 name.contains("publishToMavenLocal", ignoreCase = true) ||
                 name.contains("publish", ignoreCase = true)
         }

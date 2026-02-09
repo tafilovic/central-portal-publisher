@@ -121,7 +121,7 @@ Build + upload bundle (local test):
 
 Build + create bundle without upload:
 ```
-./gradlew fakeUpload
+./gradlew packageArtifactsOnly
 ```
 
 The generated bundle is at:

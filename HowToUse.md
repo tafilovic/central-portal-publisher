@@ -101,7 +101,7 @@ Create the bundle and upload:
 Create the bundle without uploading:
 
 ```
-./gradlew fakeUpload
+./gradlew packageArtifactsOnly
 ```
 
 The bundle is created at:
