@@ -1,183 +1,53 @@
-## How to Use
+## Maintainer Notes
 
-This plugin can be published in two places:
+This file is for future maintenance and publishing, not for end-user usage.
 
-- Gradle Plugin Portal
-- JitPack
+## What this plugin does
 
-Use the same plugin ID in both places:
-`io.github.tafilovic.central-portal-publisher`
+- Builds a Maven publication from an Android library component.
+- Generates a javadoc jar, bundles AAR/POM/module metadata + signatures.
+- Uploads the bundle to Sonatype Central Portal.
 
-## Plugin Portal usage (recommended)
+## Key files and entry points
 
-```
-plugins {
-    id("io.github.tafilovic.central-portal-publisher") version "2.0.8"
-}
-```
+- Plugin implementation: `plugin/src/main/kotlin/io/github/tafilovic/CentralPortalPublisherPlugin.kt`
+- Extension: `plugin/src/main/kotlin/io/github/tafilovic/CentralPortalExtension.kt`
+- Plugin ID and version: `plugin/build.gradle.kts`
+- CI publish workflow: `.github/workflows/publish-gradle-portal.yml`
 
-## JitPack usage
+## Tasks exposed by the plugin (consumer project)
 
-If you publish the plugin to JitPack, apply it with the same ID:
+- `packageArtifactsOnly` creates the upload bundle without uploading.
+- `uploadToCentralPortal` creates and uploads the bundle.
 
-```
-plugins {
-    id("io.github.tafilovic.central-portal-publisher") version "2.0.8"
-}
-```
+Note: publication/signing configuration only runs when publish-related tasks are requested.
 
-## Minimal configuration
-
-```
-centralPortalPublisher {
-    componentName = "release" // or "<flavor>Release"
-    groupId = "io.github.tafilovic"
-    artifactId = "your-library"
-    version = "1.0.0"
-    flavorName = "prod-release" // optional, only if you use flavors
-}
-```
-
-## Required Gradle properties
-
-Add these to `gradle.properties`:
-
-```
-GROUP=io.github.tafilovic
-POM_ARTIFACT_ID=your-library
-VERSION_NAME=1.0.0
-POM_NAME=Your Library
-POM_DESCRIPTION=Short description
-POM_URL=https://github.com/your/repo
-
-POM_LICENSE_NAME=The Apache License, Version 2.0
-POM_LICENSE_URL=https://www.apache.org/licenses/LICENSE-2.0.txt
-POM_LICENSE_DIST=repo
-
-POM_DEVELOPER_ID=your-id
-POM_DEVELOPER_NAME=Your Name
-POM_DEVELOPER_URL=https://github.com/your
-
-POM_SCM_URL=https://github.com/your/repo
-POM_SCM_CONNECTION=scm:git:github.com/your/repo.git
-POM_SCM_DEV_CONNECTION=scm:git:ssh://github.com/your/repo.git
-```
-
-## Signing
-
-Add signing credentials to `local.properties` (or CI secrets):
-
-```
-signing.keyId=YOUR_KEY_ID
-signing.password=YOUR_KEY_PASSWORD
-signing.secretKeyRingFile=/path/to/secring.gpg
-```
-
-Or use base64:
-
-```
-signing.keyBase64=BASE64_PGP_KEY
-signing.keyId=YOUR_KEY_ID
-signing.password=YOUR_KEY_PASSWORD
-```
-
-## Sonatype Central Portal credentials
-
-Add to `local.properties` (or CI secrets):
-
-```
-mavenCentralUsername=YOUR_USERNAME
-mavenCentralPassword=YOUR_PASSWORD
-```
-
-## Tasks
-
-Create the bundle and upload:
-
-```
-./gradlew uploadToCentralPortal
-```
-
-Create the bundle without uploading:
-
-```
-./gradlew packageArtifactsOnly
-```
-
-The bundle is created at:
-
-```
-publishTest/build/central-portal-upload.zip
-```
-
-## JitPack build note
-
-If you publish this plugin with JitPack, exclude `publishTest` to avoid build failures:
-
-```
-if (System.getenv("JITPACK") == null) {
-    include(":publishTest")
-}
-```
-
-## Maintainer Notes (build + release)
-
-### 1) Update version
-
-Update the version in `plugin/build.gradle.kts`:
-
-```
-version = "X.Y.Z"
-```
-
-Keep the same version in usage snippets (README/HowToUse).
-
-### 2) Build locally (optional but recommended)
+## Local build and smoke check
 
 ```
 ./gradlew :plugin:build
 ```
 
-### 3) Publish to Gradle Plugin Portal
+## Publish a new version to Gradle Plugin Portal
 
-Prerequisites:
-- Gradle Plugin Portal API key/secret in `~/.gradle/gradle.properties`:
-  - `gradle.publish.key`
-  - `gradle.publish.secret`
-
-Publish (skips `publishTest`):
-```
-./gradlew -PskipPublishTest :plugin:publishPlugins
-```
-
-Alternative helper task:
-```
-./gradlew publishPluginPortal
-```
-
-### 4) Publish to JitPack
-
-JitPack publishes by Git tag.
+1) Update the plugin version:
 
 ```
-git tag vX.Y.Z
-git push origin vX.Y.Z
+version = "X.Y.Z"
 ```
 
-JitPack will build the tag using `jitpack.yml` and publish artifacts under version `X.Y.Z`.
+2) Run GitHub Actions workflow:
 
-### 5) Verify consumption
+- Workflow: `Publish Gradle Plugin`
+- Input: version `X.Y.Z`
+- Secrets: `GRADLE_PUBLISH_KEY` and `GRADLE_PUBLISH_SECRET`
+- Environment: `publishing environment`
 
-Plugin Portal:
-```
-plugins {
-    id("io.github.tafilovic.central-portal-publisher") version "X.Y.Z"
-}
-```
+## If you extend functionality
 
-JitPack:
-```
-plugins {
-    id("io.github.tafilovic.central-portal-publisher") version "X.Y.Z"
-}
-```
+Common places to modify:
+
+- New config options: `CentralPortalExtension`
+- Publish flow: `packageArtifacts()`, `upload()`, and artifact collection helpers
+- Task wiring: `packageArtifactsOnly` and `uploadToCentralPortal` registration
+- Metadata mapping: POM values in `PublishingExtension` setup
