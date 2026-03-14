@@ -18,6 +18,7 @@ import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.jvm.tasks.Jar
 import java.io.File
 import java.io.FileOutputStream
+import java.net.SocketTimeoutException
 import okhttp3.Credentials
 import okio.ByteString.Companion.decodeBase64
 import java.util.Properties
@@ -240,7 +241,8 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
                     password = password,
                     bundleFile = uploadFile,
                     title = "$pomName $pomVersion",
-                    publishingType = publishingType
+                    publishingType = publishingType,
+                    timeoutMinutes = ext.uploadTimeoutMinutes
                 )
             }
         }
@@ -344,7 +346,8 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
         password: String,
         bundleFile: File,
         title: String,
-        publishingType: PublishingType = PublishingType.USER_MANAGED
+        publishingType: PublishingType = PublishingType.USER_MANAGED,
+        timeoutMinutes: Long = 10
     ) {
         // Central Portal upload API (multipart bundle upload).
         val loggerInterceptor = HttpLoggingInterceptor().apply {
@@ -352,8 +355,16 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
         }
         val token = Credentials.basic(username, password)
 
+        // Use separate write/read timeouts instead of a single callTimeout.
+        // writeTimeout covers uploading the bundle bytes to the server.
+        // readTimeout covers waiting for the server to respond with the deployment ID.
+        // This prevents timing out during server-side processing, which is where the
+        // SocketTimeoutException was occurring — after the upload but before the response.
         val client = OkHttpClient.Builder().addInterceptor(loggerInterceptor)
-            .callTimeout(5, TimeUnit.MINUTES).build()
+            .writeTimeout(timeoutMinutes, TimeUnit.MINUTES)
+            .readTimeout(timeoutMinutes, TimeUnit.MINUTES)
+            .connectTimeout(1, TimeUnit.MINUTES)
+            .build()
 
         val requestBody = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart(
             "bundle",
@@ -386,6 +397,17 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
                         )
                     }
                 }
+            } catch (ex: SocketTimeoutException) {
+                // The bundle was already sent to the server. Central Portal has no search API —
+                // status can only be queried by deployment ID, which is returned in the response
+                // body we never received. Stop retrying to avoid duplicate deployments.
+                throw GradleException(
+                    "Upload timed out after ${timeoutMinutes}m waiting for Central Portal's response. " +
+                        "The bundle was already transmitted — check https://central.sonatype.com " +
+                        "manually before retrying to avoid duplicate deployments. " +
+                        "You can increase the timeout via centralPortalPublisher { uploadTimeoutMinutes = 20 }",
+                    ex
+                )
             } catch (ex: Exception) {
                 println("❌ Upload failed (attempt $attempt/$maxAttempts): ${ex.message}")
                 if (attempt == maxAttempts) throw ex
