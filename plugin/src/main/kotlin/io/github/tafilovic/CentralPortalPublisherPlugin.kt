@@ -51,8 +51,10 @@ class CentralPortalPublisherPlugin : Plugin<Project> {
         val publishRequested = isPublishTaskRequested()
         if (publishRequested) {
             // Android Library plugin is required to expose a publishable component.
-            project.extensions.findByName("android") as? com.android.build.gradle.LibraryExtension
-                ?: throw GradleException("Android library plugin is not applied")
+            if (!project.plugins.hasPlugin("com.android.library")) {
+                throw GradleException("Android library plugin is not applied")
+            }
+
 
             // Javadoc artifact published alongside the AAR.
             val javadocJar = project.tasks.register("javadocJar", Jar::class.java) {

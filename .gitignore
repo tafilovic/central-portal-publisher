@@ -9,3 +9,4 @@ build
 *.hprof
 .idea
 .DS_Store
+.kotlin/
